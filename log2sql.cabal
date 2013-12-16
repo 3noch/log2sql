@@ -20,7 +20,7 @@ executable log2sql
   -- other-modules:       
   -- other-extensions:    
   build-depends:       base >=4.6 && <4.7,
-                       bytestring,
+                       filepath,
                        optparse-applicative,
                        sqlite-simple,
                        text

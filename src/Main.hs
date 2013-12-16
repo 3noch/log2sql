@@ -1,76 +1,68 @@
- {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Main where
 
-import Control.Applicative
-import Control.Category ((>>>))
-import Control.Monad (forM_)
-import           Data.Text.Lazy (Text)
+import           Control.Applicative
+import           Data.Maybe
 import qualified Data.Text.Lazy as T
 import qualified Data.Text.Lazy.IO as Tio
-import Data.Monoid
-import Data.String
-import Database.SQLite.Simple
-import System.Environment (getArgs)
+import           Options.Applicative
+import           System.FilePath
 
-data TestField = TestField Int String String deriving (Show)
+import           Converter
 
-instance FromRow TestField where
-    fromRow = TestField <$> field <*> field <*> field
 
-data Options = Options
-    { opName   :: Text
-    , opFields :: [Text]
-    , opDelim  :: Text
-    }
+data CmdOptions = CmdOptions
+  { columns :: [String]
+  , delim   :: String
+  , inFile  :: Maybe String
+  , outFile :: Maybe String
+  , table   :: Maybe String
+  } deriving (Show)
 
-defaults :: Options
-defaults = Options "test" ["timestamp", "thread_id", "line_no", "file", "func", "message"] ","
 
-encloseWithLR :: Monoid a => a -> a -> a -> a
-encloseWithLR left right inner = left <> inner <> right
+cmdOptions :: Parser CmdOptions
+cmdOptions = CmdOptions
+  <$> some (argument str (metavar "COLUMNS..."))
+  <*> strOption
+      ( long    "delimiter"
+     <> short   'd'
+     <> metavar "DELIM"
+     <> value   ","
+     <> showDefault
+     <> help    "use DELIM to delimit columns in the input" )
+  <*> (optional . strOption)
+      ( long    "file"
+     <> short   'f'
+     <> metavar "FILE"
+     <> help    "read FILE instead of stdin" )
+  <*> (optional . strOption)
+      ( long    "output"
+     <> short   'o'
+     <> metavar "OUTFILE"
+     <> help    "write SQLite database to OUTFILE" )
+  <*> (optional . strOption)
+      ( long    "table"
+     <> short   't'
+     <> metavar "TABLE"
+     <> help    "use TABLE as the SQLite table name" )
 
-encloseWith :: Monoid a => a -> a -> a
-encloseWith x = encloseWithLR x x
 
-enclosedBy :: Monoid a => a -> a -> a
-enclosedBy = flip encloseWith
+mapCmdOptions :: CmdOptions -> IO ()
+mapCmdOptions (CmdOptions cols dlim inf' outf' table') = do
+    xs <- T.lines <$> input
+    runWith (Options (T.pack table) (T.pack outf) (T.pack <$> cols) (T.pack dlim)) xs
+  where
+    input = maybe Tio.getContents Tio.readFile inf'
+    outf  = fromJust $ outf'
+                   <|> (((<> "-out.db") . dropExtension) <$> inf')
+                   <|> Just "log-data.db"
+    table = fromJust $ table' <|> (dropExtension <$> inf') <|> Just "log_data"
 
-sqlColumns :: [Text] -> [Text]
-sqlColumns = map $ encloseWith "\"" >>> (<> " TEXT")
-
-limitedSplitOn :: Int -> Text -> Text -> [Text]
-limitedSplitOn 0 _ x         = [x]
-limitedSplitOn limit delim x = if length pieces > limit
-                                   then take (limit - 1) pieces ++ [T.concat (drop limit pieces)]
-                                   else pieces
-    where pieces = T.splitOn delim x
-
-runWith :: Options -> [Text] -> IO ()
-runWith (Options name fields delim) xs = withConnection (fileName) $ \c -> do
-    execute_ c $ fromString (T.unpack $ "CREATE TABLE IF NOT EXISTS " <> tableName <> " " <> columnDef)
-    execute_ c "BEGIN TRANSACTION"
-    forM_ xs $ \x -> do
-        execute c (fromString (T.unpack insertQuery)) (parseLine x)
-    execute_ c "COMMIT"
-    where
-        fileName = T.unpack $ name <> ".db"
-        tableName = name `enclosedBy` "\""
-        columnDef = "(id INTEGER PRIMARY KEY, " <> (T.intercalate ", " (sqlColumns fields)) <> ")"
-        insertQuery = "INSERT INTO " <> tableName <> " ("
-                   <> T.intercalate ", " fields
-                   <> ") VALUES ("
-                   <> T.intercalate ", " (replicate (length fields) "?")
-                   <> ")"
-
-        parseLine :: Text -> [Text]
-        parseLine x = clean <$> limitedSplitOn numFields delim x
-            where
-                numFields = length fields
-                clean = T.dropAround (`elem` " \"")
 
 main :: IO ()
-main = do
-    (fileName:_) <- getArgs
-    Tio.readFile fileName >>= (T.lines >>> runWith defaults)
-
+main = execParser opts >>= mapCmdOptions
+  where
+    opts = info (helper <*> cmdOptions)
+      ( fullDesc
+     <> progDesc "Convert a log file into a SQLite table for querying" )
