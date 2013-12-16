@@ -1,14 +1,30 @@
 log2sql
 =======
 
-Parses a log file and writes it to a [SQLite] database for better querying
+Parses a log file and writes it to a [SQLite] database for better querying.
 
 Usage
 -----
 
-Currently `log2sql` only supports [decrypted] Windows client log files.
+`log2sql --help`
 
-`log2sql myfile.log` will create `test.db` with your log's data as columns of the table `test`.
+For example,
+
+`log2sql -f myfile.log -d ";" colname1 colname2 colname3 colname4`
+
+will parse the file `myfile.log` with four columns, separated by `;`s,
+and write the output to `myfile-out.db`.
+
+Likewise, you could do
+
+`cat myfile.log | log2sql -d ";" colname1 colname2 colname3 colname4`
+
+by leaving the `-f` flag off. This will write a database called
+`log-data.db`.
+
+`log2sql` will always merge superfluous colmuns into the last one.
+For example, if you specify two columns but your data has three, then
+`log2sql` will merge the third column into the second.
 
 
 Building

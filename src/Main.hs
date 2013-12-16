@@ -13,12 +13,12 @@ import           Converter
 
 
 data CmdOptions = CmdOptions
-  { columns :: [String]
-  , delim   :: String
-  , inFile  :: Maybe String
-  , outFile :: Maybe String
-  , table   :: Maybe String
-  } deriving (Show)
+  { _columns :: [String]
+  , _delim   :: String
+  , _inFile  :: Maybe String
+  , _outFile :: Maybe String
+  , _table   :: Maybe String
+  }
 
 
 cmdOptions :: Parser CmdOptions
@@ -30,22 +30,22 @@ cmdOptions = CmdOptions
      <> metavar "DELIM"
      <> value   ","
      <> showDefault
-     <> help    "use DELIM to delimit columns in the input" )
+     <> help    "Use DELIM to delimit columns in the input" )
   <*> (optional . strOption)
       ( long    "file"
      <> short   'f'
      <> metavar "FILE"
-     <> help    "read FILE instead of stdin" )
+     <> help    "Read FILE instead of stdin" )
   <*> (optional . strOption)
       ( long    "output"
      <> short   'o'
      <> metavar "OUTFILE"
-     <> help    "write SQLite database to OUTFILE" )
+     <> help    "Write SQLite database to OUTFILE (default: \"FILE-out.db\" or \"log-data.db\")" )
   <*> (optional . strOption)
       ( long    "table"
      <> short   't'
      <> metavar "TABLE"
-     <> help    "use TABLE as the SQLite table name" )
+     <> help    "Use TABLE as the SQLite table name (default: FILE or \"log_data\")" )
 
 
 mapCmdOptions :: CmdOptions -> IO ()
