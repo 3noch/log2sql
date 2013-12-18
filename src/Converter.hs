@@ -1,9 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Converter
-	( Options(..)
-	, runWith
-	) where
+    ( Options(..)
+    , runWith
+    ) where
 
 import Control.Applicative
 import Control.Category ((>>>))
@@ -33,17 +33,17 @@ enclosedBy = flip encloseWith
 limitedSplitOn :: Int -> Text -> Text -> [Text]
 limitedSplitOn 0 _ x         = [x]
 limitedSplitOn limit delim x =
-	if length pieces > limit
+    if length pieces > limit
     then take (limit - 1) pieces ++ [T.concat (drop limit pieces)]
     else pieces
   where pieces = T.splitOn delim x
 
 withTransaction :: Connection -> IO a -> IO a
 withTransaction c f = do
-	execute_ c "BEGIN IMMEDIATE TRANSACTION"
-	x <- f
-	execute_ c "COMMIT"
-	return x
+    execute_ c "BEGIN IMMEDIATE TRANSACTION"
+    x <- f
+    execute_ c "COMMIT"
+    return x
 
 toQ :: Text -> Query
 toQ = fromString . T.unpack
@@ -53,8 +53,8 @@ runWith :: Options -> [Text] -> IO ()
 runWith (Options name outf fields delim) xs = withConnection (fileName) $ \c -> do
     execute_ c createQuery
     withTransaction c $ do
-    	forM_ xs $ \x -> do
-        	execute c insertQuery (parseLine x)
+        forM_ xs $ \x -> do
+            execute c insertQuery (parseLine x)
   where
       fileName = T.unpack outf
       tableName = name `enclosedBy` "\""
@@ -63,7 +63,7 @@ runWith (Options name outf fields delim) xs = withConnection (fileName) $ \c -> 
 
       columnDef = "(id INTEGER PRIMARY KEY, " <> (T.intercalate ", " (sqlColumns fields)) <> ")"
         where sqlColumns = map $ encloseWith "\"" >>> (<> " TEXT")
-        
+
       insertQuery = toQ $ "INSERT INTO " <> tableName <> " ("
                  <> T.intercalate ", " fields
                  <> ") VALUES ("

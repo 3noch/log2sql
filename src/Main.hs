@@ -3,13 +3,15 @@
 module Main where
 
 import           Control.Applicative
-import           Data.Maybe
+import           Data.Maybe (fromJust)
 import qualified Data.Text.Lazy as T
 import qualified Data.Text.Lazy.IO as Tio
+import           Data.Version (showVersion)
 import           Options.Applicative
 import           System.FilePath
 
 import           Converter
+import           Paths_log2sql (version)
 
 
 data CmdOptions = CmdOptions
@@ -50,6 +52,7 @@ cmdOptions = CmdOptions
 
 mapCmdOptions :: CmdOptions -> IO ()
 mapCmdOptions (CmdOptions cols dlim inf' outf' table') = do
+    print version
     xs <- T.lines <$> input
     runWith (Options (T.pack table) (T.pack outf) (T.pack <$> cols) (T.pack dlim)) xs
   where
@@ -60,9 +63,15 @@ mapCmdOptions (CmdOptions cols dlim inf' outf' table') = do
     table = fromJust $ table' <|> (dropExtension <$> inf') <|> Just "log_data"
 
 
+addVersion :: Parser (a -> a)
+addVersion = infoOption ("log2sql version " ++ showVersion version)
+  ( long "version"
+  <> help "Show version information" )
+
+
 main :: IO ()
 main = execParser opts >>= mapCmdOptions
   where
-    opts = info (helper <*> cmdOptions)
+    opts = info (helper <*> addVersion <*> cmdOptions)
       ( fullDesc
      <> progDesc "Convert a log file into a SQLite table for querying" )
