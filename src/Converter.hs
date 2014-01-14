@@ -6,6 +6,7 @@ module Converter
     ) where
 
 import Control.Applicative
+import Control.Exception (bracketOnError)
 import Control.Category ((>>>))
 import Control.Monad (forM_)
 import           Data.Text.Lazy (Text)
@@ -15,10 +16,10 @@ import Data.String
 import Database.SQLite.Simple
 
 data Options = Options
-    { opName    :: Text
-    , opOutFile :: Text
-    , opFields  :: [Text]
-    , opDelim   :: Text
+    { _opName    :: Text
+    , _opOutFile :: Text
+    , _opFields  :: [Text]
+    , _opDelim   :: Text
     }
 
 encloseWithLR :: Monoid a => a -> a -> a -> a
@@ -39,15 +40,20 @@ limitedSplitOn limit delim x =
   where pieces = T.splitOn delim x
 
 withTransaction :: Connection -> IO a -> IO a
-withTransaction c f = do
-    execute_ c "BEGIN IMMEDIATE TRANSACTION"
-    x <- f
-    execute_ c "COMMIT"
-    return x
+withTransaction c f = bracketOnError start rollback go
+  where
+    start = execute_ c "BEGIN IMMEDIATE TRANSACTION"
+
+    go _ = do
+      x <- f
+      execute_ c "COMMIT"
+      return x
+
+    rollback _ = do
+      execute_ c "ROLLBACK"
 
 toQ :: Text -> Query
 toQ = fromString . T.unpack
-
 
 runWith :: Options -> [Text] -> IO ()
 runWith (Options name outf fields delim) xs = withConnection (fileName) $ \c -> do
@@ -61,8 +67,8 @@ runWith (Options name outf fields delim) xs = withConnection (fileName) $ \c -> 
  
       createQuery = toQ $ "CREATE TABLE IF NOT EXISTS " <> tableName <> " " <> columnDef
 
-      columnDef = "(id INTEGER PRIMARY KEY, " <> (T.intercalate ", " (sqlColumns fields)) <> ")"
-        where sqlColumns = map $ encloseWith "\"" >>> (<> " TEXT")
+      columnDef = "(id INTEGER PRIMARY KEY, " <> (T.intercalate ", " (sqlColumn <$> fields)) <> ")"
+        where sqlColumn = encloseWith "\"" >>> (<> " TEXT")
 
       insertQuery = toQ $ "INSERT INTO " <> tableName <> " ("
                  <> T.intercalate ", " fields
@@ -71,7 +77,5 @@ runWith (Options name outf fields delim) xs = withConnection (fileName) $ \c -> 
                  <> ")"
 
       parseLine :: Text -> [Text]
-      parseLine x = clean <$> limitedSplitOn numFields delim x
-        where
-          numFields = length fields
-          clean = T.dropAround (`elem` " \"")
+      parseLine x = clean <$> limitedSplitOn (length fields) delim x
+        where clean = T.dropAround (`elem` " \"'")
