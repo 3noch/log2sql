@@ -52,7 +52,6 @@ cmdOptions = CmdOptions
 
 mapCmdOptions :: CmdOptions -> IO ()
 mapCmdOptions (CmdOptions cols dlim inf' outf' table') = do
-    print version
     xs <- T.lines <$> input
     runWith (Options (T.pack table) (T.pack outf) (T.pack <$> cols) (T.pack dlim)) xs
   where
