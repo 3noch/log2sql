@@ -6,7 +6,7 @@ module Converter
     ) where
 
 import Control.Applicative
-import Control.Exception (bracketOnError)
+import Control.Exception (bracketOnError, catch)
 import Control.Category ((>>>))
 import Control.Monad (forM_)
 import           Data.Text.Lazy (Text)
@@ -14,6 +14,8 @@ import qualified Data.Text.Lazy as T
 import Data.Monoid
 import Data.String
 import Database.SQLite.Simple
+import System.IO (hPutStrLn, stderr)
+
 
 data Options = Options
     { _opName    :: Text
@@ -49,25 +51,24 @@ withTransaction c f = bracketOnError start rollback go
       execute_ c "COMMIT"
       return x
 
-    rollback _ = do
-      execute_ c "ROLLBACK"
+    rollback _ = execute_ c "ROLLBACK"
 
 toQ :: Text -> Query
 toQ = fromString . T.unpack
 
 runWith :: Options -> [Text] -> IO ()
-runWith (Options name outf fields delim) xs = withConnection (fileName) $ \c -> do
+runWith (Options name outf fields delim) xs = withConnection fileName $ \c -> do
     execute_ c createQuery
-    withTransaction c $ do
-        forM_ xs $ \x -> do
-            execute c insertQuery (parseLine x)
+    withTransaction c $
+        forM_ (zip [1..] xs) $ \(i, x) ->
+            execute c insertQuery (parseLine x) `catch` handleError i
   where
       fileName = T.unpack outf
       tableName = name `enclosedBy` "\""
  
       createQuery = toQ $ "CREATE TABLE IF NOT EXISTS " <> tableName <> " " <> columnDef
 
-      columnDef = "(id INTEGER PRIMARY KEY, " <> (T.intercalate ", " (sqlColumn <$> fields)) <> ")"
+      columnDef = "(id INTEGER PRIMARY KEY, " <> T.intercalate ", " (sqlColumn <$> fields) <> ")"
         where sqlColumn = encloseWith "\"" >>> (<> " TEXT")
 
       insertQuery = toQ $ "INSERT INTO " <> tableName <> " ("
@@ -79,3 +80,6 @@ runWith (Options name outf fields delim) xs = withConnection (fileName) $ \c -> 
       parseLine :: Text -> [Text]
       parseLine x = clean <$> limitedSplitOn (length fields) delim x
         where clean = T.dropAround (`elem` " \"'")
+
+      handleError :: Int -> FormatError -> IO ()
+      handleError idx e = hPutStrLn stderr $ "Error on line " ++ show idx ++ ": " ++ show e
