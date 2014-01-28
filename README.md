@@ -41,3 +41,11 @@ Then you can
 $ cd log2sql
 $ cabal install
 ```
+
+License
+-------
+
+Copyright &copy; Covenant Eyes 2014
+
+This package is licensed under the [MIT license](http://opensource.org/licenses/mit-license.php)
+(see `LICENSE.txt`).
