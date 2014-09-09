@@ -41,18 +41,6 @@ limitedSplitOn limit delim x =
     else pieces
   where pieces = T.splitOn delim x
 
-withTransaction :: Connection -> IO a -> IO a
-withTransaction c f = bracketOnError start rollback go
-  where
-    start = execute_ c "BEGIN IMMEDIATE TRANSACTION"
-
-    go _ = do
-      x <- f
-      execute_ c "COMMIT"
-      return x
-
-    rollback _ = execute_ c "ROLLBACK"
-
 toQ :: Text -> Query
 toQ = fromString . T.unpack
 
@@ -83,3 +71,4 @@ runWith (Options name outf fields delim) xs = withConnection fileName $ \c -> do
 
       handleError :: Int -> FormatError -> IO ()
       handleError idx e = hPutStrLn stderr $ "Error on line " ++ show idx ++ ": " ++ show e
+

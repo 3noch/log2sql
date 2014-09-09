@@ -3,3 +3,6 @@
 *.o
 *.sublime-*
 dist/
+cabal.sandbox.config
+.cabal-sandbox/
+
