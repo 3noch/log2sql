@@ -53,7 +53,7 @@ runWith (Options name outf fields delim) xs = withConnection fileName $ \c -> do
   where
       fileName = T.unpack outf
       tableName = name `enclosedBy` "\""
- 
+
       createQuery = toQ $ "CREATE TABLE IF NOT EXISTS " <> tableName <> " " <> columnDef
 
       columnDef = "(id INTEGER PRIMARY KEY, " <> T.intercalate ", " (sqlColumn <$> fields) <> ")"
@@ -67,8 +67,7 @@ runWith (Options name outf fields delim) xs = withConnection fileName $ \c -> do
 
       parseLine :: Text -> [Text]
       parseLine x = clean <$> limitedSplitOn (length fields) delim x
-        where clean = T.dropAround (`elem` " \"'")
+        where clean = T.dropAround (`elem` (" \"'" :: String))
 
       handleError :: Int -> FormatError -> IO ()
       handleError idx e = hPutStrLn stderr $ "Error on line " ++ show idx ++ ": " ++ show e
-
